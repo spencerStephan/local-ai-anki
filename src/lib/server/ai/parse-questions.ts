@@ -1,5 +1,7 @@
-const url = 'http://192.168.2.47:1234';
-const IDENTIFIER = 'qwen/qwen3-vl-8b';
+import { env } from '$env/dynamic/private';
+
+const url = env.LOCAL_AI_HTTP_URL;
+const IDENTIFIER = env.MODEL_NAME;
 
 export async function postMessage(content: string | null) {
 	if (!content) {
