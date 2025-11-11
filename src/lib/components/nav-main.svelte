@@ -41,7 +41,11 @@
 				if (content.name.includes('Map')) {
 					continue;
 				}
-				selectedFiles.push({ name: content.name, content: content.content, isUploaded: false });
+				selectedFiles.push({
+					name: content.name,
+					content: content.content,
+					isUploaded: false
+				});
 			}
 
 			let checkedFilesIfUploaded = await checkFile({
@@ -103,8 +107,12 @@
 		});
 	}
 
-	let selectedFilesToUpload: { name: string; update: boolean; upload: boolean; content: string }[] =
-		$state([]);
+	let selectedFilesToUpload: {
+		name: string;
+		update: boolean;
+		upload: boolean;
+		content: string;
+	}[] = $state([]);
 
 	let checkedItems: string[] = $state([]);
 
@@ -121,6 +129,11 @@
 		if (response && response.success === true) {
 			if (response.data) {
 				let questionsSuccess = await generateQuestions(JSON.stringify(response.data));
+				if (questionsSuccess.success == false) {
+					toast.error('Questions not generated successfully');
+				} else {
+					toast.success('Questions generated successfully');
+				}
 			}
 		} else {
 			toast.error('Files not uploaded successfully');

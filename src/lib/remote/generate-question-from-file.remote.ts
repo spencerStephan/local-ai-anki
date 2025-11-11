@@ -55,8 +55,7 @@ export const generateQuestions = command(idsArraySchema, async (ids) => {
 			);
 		} catch (err) {
 			if (err instanceof Error) {
-				console.log(err);
-				return JSON.stringify({ success: false, message: JSON.stringify(err) });
+				return { success: false, message: JSON.stringify(err)};
 			}
 		}
 	}
@@ -78,7 +77,5 @@ export const generateQuestions = command(idsArraySchema, async (ids) => {
 		}
 	});
 
-	console.log('success');
-
-	return JSON.stringify({ success: true, data: questions });
+	return { success: true, data: questions };
 });

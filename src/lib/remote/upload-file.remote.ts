@@ -1,6 +1,6 @@
 import { command } from '$app/server';
 import { db } from '$lib/server/db';
-import { note } from '$lib/server/db/schema';
+import { note, card } from '$lib/server/db/schema';
 import { eq } from 'drizzle-orm';
 import { z } from 'zod/v4';
 
@@ -23,9 +23,26 @@ export const uploadFile = command(
 		const ids: { id: string }[] = [];
 
 		try {
-			const parsedNotes = JSON.parse(notes);
+			const parsedNotes: {
+				upload: boolean;
+				content: string;
+				name: string;
+				update: boolean;
+			}[] = JSON.parse(notes);
 
 			for (const noteData of parsedNotes) {
+				if (noteData.update) {
+					const existingNote = await db
+						.select({ id: note.id })
+						.from(note)
+						.where(eq(note.name, noteData.name))
+						.limit(1);
+
+					if (existingNote.length > 0) {
+						await db.delete(card).where(eq(card.noteId, existingNote[0].id));
+					}
+				}
+
 				const id = await db
 					.insert(note)
 					.values({
