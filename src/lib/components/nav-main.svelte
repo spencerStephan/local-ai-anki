@@ -17,8 +17,12 @@
 	let filesLoaded = $state(false);
 	import { toast } from 'svelte-sonner';
 	import { generateQuestions } from '$lib/remote/generate-question-from-file.remote';
+	import { Spinner } from '$lib/components/ui/spinner/index.js';
+	import { Progress } from '$lib/components/ui/progress/index.js';
 
 	let loadingAI = $state(false);
+	let uploadProgress = $state(0);
+	let progressMessage = $state('');
 
 	let selectedFiles = $state<{ name: string; content: string; isUploaded: boolean }[]>([]);
 	let fileInput: HTMLInputElement | null = $state(null);
@@ -69,7 +73,7 @@
 					};
 				})
 				.filter((file) => {
-					return file.upload == true;
+					return file.upload == true || file.update == true;
 				});
 		} finally {
 			filesLoaded = true;
@@ -118,27 +122,66 @@
 
 	async function uploadFiles() {
 		loadingAI = true;
+		uploadProgress = 0;
+		progressMessage = 'Starting upload...';
+
 		if (selectedFilesToUpload.length === 0) {
 			toast.warning('No files selected');
+			loadingAI = false;
+			progressMessage = '';
 			return;
 		}
-		let response = await uploadFile({
-			notes: JSON.stringify(selectedFilesToUpload)
-		});
 
-		if (response && response.success === true) {
-			if (response.data) {
-				let questionsSuccess = await generateQuestions(JSON.stringify(response.data));
-				if (questionsSuccess.success == false) {
-					toast.error('Questions not generated successfully');
-				} else {
-					toast.success('Questions generated successfully');
+		const totalFiles = selectedFilesToUpload.length;
+		const uploadedNoteIds: { id: string }[] = [];
+		let hasErrors = false;
+
+		for (let i = 0; i < totalFiles; i++) {
+			const file = selectedFilesToUpload[i];
+			const fileProgress = (i / totalFiles) * 100;
+
+			progressMessage = `Uploading ${file.name} (${i + 1}/${totalFiles})...`;
+			uploadProgress = fileProgress + 5;
+
+			const uploadResponse = await uploadFile({
+				notes: JSON.stringify([file])
+			});
+
+			if (uploadResponse && uploadResponse.success === true && uploadResponse.data) {
+				uploadedNoteIds.push(...uploadResponse.data);
+				uploadProgress = fileProgress + 25;
+				progressMessage = `Generating questions for ${file.name} (${i + 1}/${totalFiles})...`;
+
+				if (uploadResponse.data.length > 0) {
+					const questionsSuccess = await generateQuestions(JSON.stringify(uploadResponse.data));
+
+					if (questionsSuccess.success === false) {
+						hasErrors = true;
+						toast.error(`Questions not generated for ${file.name}`);
+					}
 				}
+			} else {
+				hasErrors = true;
+				toast.error(`Failed to upload ${file.name}`);
 			}
-		} else {
-			toast.error('Files not uploaded successfully');
+
+			uploadProgress = ((i + 1) / totalFiles) * 100;
 		}
-		loadingAI = false;
+
+		if (hasErrors) {
+			toast.warning('Some files had errors during processing');
+		} else {
+			toast.success('All files processed successfully');
+		}
+
+		progressMessage = 'Complete!';
+		uploadProgress = 100;
+
+		setTimeout(() => {
+			loadingAI = false;
+			uploadProgress = 0;
+			progressMessage = '';
+		}, 500);
 	}
 </script>
 
@@ -261,8 +304,21 @@
 						</Table.Body>
 					</Table.Root>
 				</Card.Content>
-				<Card.Footer>
-					<Button variant="default" onclick={uploadFiles} disabled={loadingAI}>Upload</Button>
+				<Card.Footer class="flex flex-col gap-2">
+					<Button variant="default" onclick={uploadFiles} disabled={loadingAI}>
+						{#if loadingAI}
+							<Spinner class="mr-2 h-4 w-4" />
+						{/if}
+						{loadingAI ? 'Processing...' : 'Upload'}
+					</Button>
+					{#if loadingAI}
+						<div class="flex flex-col gap-1">
+							<Progress value={uploadProgress} class="w-full" />
+							{#if progressMessage}
+								<p class="text-center text-xs text-muted-foreground">{progressMessage}</p>
+							{/if}
+						</div>
+					{/if}
 				</Card.Footer>
 			</Card.Root>
 		{/if}

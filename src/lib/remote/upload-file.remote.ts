@@ -1,7 +1,7 @@
 import { command } from '$app/server';
 import { db } from '$lib/server/db';
-import { note, card } from '$lib/server/db/schema';
-import { eq } from 'drizzle-orm';
+import { note, card, review, score } from '$lib/server/db/schema';
+import { eq, inArray } from 'drizzle-orm';
 import { z } from 'zod/v4';
 
 export const checkFile = command(
@@ -30,7 +30,11 @@ export const uploadFile = command(
 				update: boolean;
 			}[] = JSON.parse(notes);
 
+			console.log('Uploading notes:', parsedNotes.length);
 			for (const noteData of parsedNotes) {
+				console.log(
+					`Processing note: ${noteData.name}, update: ${noteData.update}, upload: ${noteData.upload}`
+				);
 				if (noteData.update) {
 					const existingNote = await db
 						.select({ id: note.id })
@@ -39,7 +43,21 @@ export const uploadFile = command(
 						.limit(1);
 
 					if (existingNote.length > 0) {
-						await db.delete(card).where(eq(card.noteId, existingNote[0].id));
+						console.log(`Deleting cards for note ${existingNote[0].id}`);
+						const cardsToDelete = await db
+							.select({ id: card.id })
+							.from(card)
+							.where(eq(card.noteId, existingNote[0].id));
+
+						if (cardsToDelete.length > 0) {
+							const cardIds = cardsToDelete.map((c) => c.id);
+							console.log(
+								`Deleting ${cardIds.length} cards, ${cardIds.length} reviews, ${cardIds.length} scores`
+							);
+							await db.delete(score).where(inArray(score.cardId, cardIds));
+							await db.delete(review).where(inArray(review.cardId, cardIds));
+							await db.delete(card).where(eq(card.noteId, existingNote[0].id));
+						}
 					}
 				}
 
@@ -56,9 +74,11 @@ export const uploadFile = command(
 						}
 					})
 					.returning({ id: note.id });
+				console.log(`Note ${noteData.name} has ID: ${id[0].id}`);
 				ids.push(id[0]);
 			}
 
+			console.log('Returning note IDs:', ids);
 			return { success: true, data: ids };
 		} catch (error) {
 			if (error instanceof Error) {
